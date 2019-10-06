@@ -1,5 +1,6 @@
 use std::process;
 use std::thread;
+use std::cell::{Cell,RefCell};
 use std::ops::{Deref, Drop};
 use redis::{ErrorKind, RedisResult, Value, Commands};
 use serde::Serialize;
@@ -48,7 +49,7 @@ impl<T: Serialize> JobEncodable for T {
 
 pub struct JobGuard<'a, T: 'a> {
     payload: T,
-    queue: &'a mut Queue<'a>,
+    queue: &'a Queue,
     failed: bool,
 }
 
@@ -86,6 +87,7 @@ impl<'a, T> Drop for JobGuard<'a, T> {
             let backup = &self.queue.backup_queue_name[..];
             self.queue
                 .client
+                .borrow_mut()
                 .lpop::<_, ()>(backup)
                 .expect("LPOP from backup queue failed");
         }
@@ -93,16 +95,16 @@ impl<'a, T> Drop for JobGuard<'a, T> {
 }
 
 
-pub struct Queue<'a> {
+pub struct Queue {
     queue_name: String,
     backup_queue_name: String,
-    stopped: bool,
-    client: &'a mut redis::Connection,
+    stopped: Cell<bool>,
+    client: RefCell<redis::Connection>,
 }
 
 
-impl<'a> Queue<'a> {
-    pub fn new(name: String, client: &'a mut redis::Connection) -> Queue {
+impl Queue {
+    pub fn new(name: String, client: redis::Connection) -> Queue {
         let qname = format!("charon:{}", name);
         let backup_queue = format!(
             "{}:{}:{}",
@@ -114,20 +116,20 @@ impl<'a> Queue<'a> {
         Queue {
             queue_name: qname,
             backup_queue_name: backup_queue,
-            client: client,
-            stopped: false,
+            client: RefCell::new(client),
+            stopped: Cell::new(false),
         }
     }
 
     /// Stop processing the queue
     /// The next `Queue::next()` call will return `None`
-    pub fn stop(&mut self) {
-        self.stopped = true;
+    pub fn stop(&self) {
+        self.stopped.set(true);
     }
 
     /// Check if queue processing is stopped
     pub fn is_stopped(&self) -> bool {
-        self.stopped
+        self.stopped.get()
     }
 
     /// Get the full queue name
@@ -142,19 +144,19 @@ impl<'a> Queue<'a> {
 
     /// Get the number of remaining jobs in the queue
     pub fn size(&self) -> u64 {
-        self.client.llen(self.queue_name.as_str()).unwrap_or(0)
+        self.client.borrow_mut().llen(self.queue_name.as_str()).unwrap_or(0)
     }
 
     /// Push a new job to the queue
-    pub fn push<T: JobEncodable>(&mut self, job: T) -> RedisResult<()> {
-        self.client.lpush(self.queue_name.as_str(), job.encode_job())
+    pub fn push<T: JobEncodable>(&self, job: T) -> RedisResult<()> {
+        self.client.borrow_mut().lpush(self.queue_name.as_str(), job.encode_job())
     }
 
     /// Grab the next job from the queue
     ///
     /// This method blocks and waits until a new job is available.
-    pub fn next<T: JobDecodable>(&'a mut self) -> Option<RedisResult<JobGuard<T>>> {
-        if self.stopped {
+    pub fn next<T: JobDecodable>(&self) -> Option<RedisResult<JobGuard<T>>> {
+        if self.is_stopped() {
             return None;
         }
 
@@ -163,7 +165,7 @@ impl<'a> Queue<'a> {
             let qname = &self.queue_name[..];
             let backup = &self.backup_queue_name[..];
 
-            v = match self.client.brpoplpush(qname, backup, 0) {
+            v = match self.client.borrow_mut().brpoplpush(qname, backup, 0) {
                 Ok(v) => v,
                 Err(_) => {
                     return Some(Err(From::from((ErrorKind::TypeError, "next failed"))));
@@ -215,8 +217,8 @@ mod test {
     fn decodes_job() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
-        let mut con2 = client.get_connection().unwrap();
-        let mut worker = Queue::new("default".into(), &mut con2);
+        let con2 = client.get_connection().unwrap();
+        let worker = Queue::new("default".into(), con2);
 
         let _: () = con.rpush(worker.queue(), sample_job_payload(42)).unwrap();
 
@@ -228,8 +230,8 @@ mod test {
     fn releases_job() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
-        let mut con2 = client.get_connection().unwrap();
-        let mut worker = Queue::new("default".into(), &mut con2);
+        let con2 = client.get_connection().unwrap();
+        let worker = Queue::new("default".into(), con2);
         let bqueue = worker.backup_queue();
 
         let _: () = con.del(bqueue).unwrap();
@@ -251,8 +253,8 @@ mod test {
     fn can_be_stopped() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
-        let mut con2 = client.get_connection().unwrap();
-        let mut worker = Queue::new("stopper".into(), &mut con2);
+        let con2 = client.get_connection().unwrap();
+        let worker = Queue::new("stopper".into(), con2);
 
         let _: () = con.del(worker.queue()).unwrap();
         let _: () = con.lpush(worker.queue(), sample_job_payload(1)).unwrap();
@@ -273,9 +275,9 @@ mod test {
     fn can_enqueue() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
-        let mut con2 = client.get_connection().unwrap();
+        let con2 = client.get_connection().unwrap();
 
-        let mut worker = Queue::new("enqueue".into(), &mut con2);
+        let worker = Queue::new("enqueue".into(), con2);
         let _: () = con.del(worker.queue()).unwrap();
 
         assert_eq!(0, worker.size());
@@ -292,8 +294,8 @@ mod test {
     fn does_not_drop_failed() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
-        let mut con2 = client.get_connection().unwrap();
-        let mut worker = Queue::new("failure".into(), &mut con2);
+        let con2 = client.get_connection().unwrap();
+        let worker = Queue::new("failure".into(), con2);
 
         let _: () = con.del(worker.queue()).unwrap();
         let _: () = con.del(worker.backup_queue()).unwrap();
