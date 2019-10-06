@@ -1,4 +1,4 @@
-use charon::Queue;
+use charon::Consumer;
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::process::Command;
@@ -19,7 +19,7 @@ impl Job {
 fn load(n: usize) {
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let con = client.get_connection().unwrap();
-    let q = Queue::new("default".into(), con);
+    let q = Consumer::new("default".into(), con);
 
     let now = Instant::now();
     for i in 0..n {
@@ -73,7 +73,7 @@ fn main() {
 
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let con = client.get_connection().unwrap();
-    let worker = Queue::new("default".into(), con);
+    let worker = Consumer::new("default".into(), con);
 
     while let Some(task) = worker.next::<Job>() {
         if task.is_err() {

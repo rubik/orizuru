@@ -1,4 +1,4 @@
-use charon::Queue;
+use charon::Consumer;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -9,9 +9,9 @@ struct Job {
 fn main() {
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let con = client.get_connection().unwrap();
-    let worker = Queue::new("default".into(), con);
+    let worker = Consumer::new("default".into(), con);
 
-    println!("Starting worker with queue `default`");
+    println!("Starting consumer with queue `default`");
 
     while let Some(task) = worker.next::<Job>() {
         if task.is_err() {
@@ -20,6 +20,6 @@ fn main() {
 
         let task = task.unwrap();
 
-        println!("Task: {:?}", task.inner());
+        println!("Task: {:?}", task.payload());
     }
 }

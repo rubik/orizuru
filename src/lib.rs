@@ -1,16 +1,13 @@
-use std::process;
-use std::thread;
-use std::cell::{Cell,RefCell};
 use std::ops::{Deref, Drop};
+use std::cell::{Cell,RefCell};
 use redis::{ErrorKind, RedisResult, Value, Commands};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-
-/// Job objects that can be reconstructed from the data stored in Redis
+/// Message objects that can be reconstructed from the data stored in Redis
 ///
 /// Implemented for all `Deserialize` objects by default by relying on JSON encoding.
-pub trait JobDecodable
+pub trait MessageDecodable
 where
     Self: Sized,
 {
@@ -21,17 +18,17 @@ where
     fn decode_job(value: &Value) -> RedisResult<Self>;
 }
 
-/// Job objects that can be encoded to a string to be stored in Redis
+/// Message objects that can be encoded to a string to be stored in Redis
 ///
 /// Implemented for all `Serialize` objects by default by encoding with Msgpack.
-pub trait JobEncodable {
+pub trait MessageEncodable {
     /// Encode the value into a Blob to insert into Redis
     ///
     /// It should encode the value into a string.
     fn encode_job(&self) -> Vec<u8>;
 }
 
-impl<T: DeserializeOwned> JobDecodable for T {
+impl<T: DeserializeOwned> MessageDecodable for T {
     fn decode_job(value: &Value) -> RedisResult<T> {
         match *value {
             Value::Data(ref v) => rmp_serde::decode::from_slice(v)
@@ -41,88 +38,97 @@ impl<T: DeserializeOwned> JobDecodable for T {
     }
 }
 
-impl<T: Serialize> JobEncodable for T {
+impl<T: Serialize> MessageEncodable for T {
     fn encode_job(&self) -> Vec<u8> {
         rmp_serde::encode::to_vec(self).unwrap()
     }
 }
 
-pub struct JobGuard<'a, T: 'a> {
-    payload: T,
-    queue: &'a Queue,
-    failed: bool,
+pub struct MessageGuard<'a, T: 'a> {
+    message: T,
+    payload: &'a str,
+    consumer: &'a Consumer,
+    rejected: bool,
 }
 
-impl<'a, T> JobGuard<'a, T> {
-    /// Fail the current job, in order to keep it in the backup queue.
-    pub fn fail(&mut self) {
-        self.failed = true;
+impl<'a, T> MessageGuard<'a, T> {
+    pub fn payload(&self) -> &str {
+        self.payload
     }
 
-    /// Get access to the underlying job.
-    ///
-    /// This should only be needed in very few cases, as this guard derefs automatically.
-    pub fn inner(&self) -> &T {
-        &self.payload
+    pub fn message(&self) -> &T {
+        &self.message
+    }
+
+    /// Reject the current job, in order to move it to the unacked queue
+    pub fn reject(&mut self) {
+        self.rejected = true;
     }
 
     /// Get access to the wrapper queue.
-    pub fn queue(&self) -> &Queue {
-        self.queue
+    pub fn consumer(&self) -> &Consumer {
+        self.consumer
     }
 }
 
-impl<'a, T> Deref for JobGuard<'a, T> {
+impl<'a, T> Deref for MessageGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.payload
+        &self.message
     }
 }
 
-impl<'a, T> Drop for JobGuard<'a, T> {
+impl<'a, T> Drop for MessageGuard<'a, T> {
     fn drop(&mut self) {
-        if !self.failed {
-            // Pop job from backup queue
-            let backup = &self.queue.backup_queue_name[..];
-            self.queue
+        if !self.rejected {
+            self.consumer
                 .client
                 .borrow_mut()
-                .lpop::<_, ()>(backup)
+                .lpush(self.consumer.unacked_queue_name.as_str(), self.payload: &str);
+            let backup = self.consumer.processing_queue_name.as_str();
+            self.consumer
+                .client
+                .borrow_mut()
+                .lpop(backup)
                 .expect("LPOP from backup queue failed");
         }
     }
 }
 
 
-pub struct Queue {
-    queue_name: String,
-    backup_queue_name: String,
+pub struct Consumer {
+    source_queue_name: String,
+    processing_queue_name: String,
+    unacked_queue_name: String,
     stopped: Cell<bool>,
     client: RefCell<redis::Connection>,
 }
 
 
-impl Queue {
-    pub fn new(name: String, client: redis::Connection) -> Queue {
-        let qname = format!("charon:{}", name);
-        let backup_queue = format!(
-            "{}:{}:{}",
-            qname,
-            process::id(),
-            thread::current().name().unwrap_or("default")
+impl Consumer {
+    pub fn new(name: String, client: redis::Connection) -> Consumer {
+        let source_queue_name = format!("charon:queue:{}", name);
+        let processing_queue_name = format!(
+            "{}:processing",
+            source_queue_name,
+        );
+        let unacked_queue_name = format!(
+            "{}:unacked",
+            source_queue_name,
         );
 
-        Queue {
-            queue_name: qname,
-            backup_queue_name: backup_queue,
+        Consumer {
+            source_queue_name: source_queue_name,
+            processing_queue_name: processing_queue_name,
+            unacked_queue_name: unacked_queue_name,
             client: RefCell::new(client),
             stopped: Cell::new(false),
         }
     }
 
     /// Stop processing the queue
-    /// The next `Queue::next()` call will return `None`
+    /// The next `Consumer::next()` call will return `None`
     pub fn stop(&self) {
         self.stopped.set(true);
     }
@@ -133,39 +139,39 @@ impl Queue {
     }
 
     /// Get the full queue name
-    pub fn queue(&self) -> &str {
-        &self.queue_name
+    pub fn source_queue(&self) -> &str {
+        &self.source_queue_name
     }
 
     /// Get the full backup queue name
-    pub fn backup_queue(&self) -> &str {
-        &self.backup_queue_name
+    pub fn processing_queue(&self) -> &str {
+        &self.processing_queue_name
     }
 
     /// Get the number of remaining jobs in the queue
     pub fn size(&self) -> u64 {
-        self.client.borrow_mut().llen(self.queue_name.as_str()).unwrap_or(0)
+        self.client.borrow_mut().llen(self.source_queue_name.as_str()).unwrap_or(0)
     }
 
     /// Push a new job to the queue
-    pub fn push<T: JobEncodable>(&self, job: T) -> RedisResult<()> {
-        self.client.borrow_mut().lpush(self.queue_name.as_str(), job.encode_job())
+    pub fn push<T: MessageEncodable>(&self, job: T) -> RedisResult<()> {
+        self.client.borrow_mut().lpush(self.source_queue_name.as_str(), job.encode_job())
     }
 
     /// Grab the next job from the queue
     ///
     /// This method blocks and waits until a new job is available.
-    pub fn next<T: JobDecodable>(&self) -> Option<RedisResult<JobGuard<T>>> {
+    pub fn next<T: MessageDecodable>(&self) -> Option<RedisResult<MessageGuard<T>>> {
         if self.is_stopped() {
             return None;
         }
 
         let v;
         {
-            let qname = &self.queue_name[..];
-            let backup = &self.backup_queue_name[..];
+            let source = &self.source_queue_name[..];
+            let processing = &self.processing_queue_name[..];
 
-            v = match self.client.borrow_mut().brpoplpush(qname, backup, 0) {
+            v = match self.client.borrow_mut().brpoplpush(source, processing, 0) {
                 Ok(v) => v,
                 Err(_) => {
                     return Some(Err(From::from((ErrorKind::TypeError, "next failed"))));
@@ -185,10 +191,11 @@ impl Queue {
 
         match T::decode_job(&v) {
             Err(e) => Some(Err(e)),
-            Ok(payload) => Some(Ok(JobGuard {
-                payload: payload,
-                queue: self,
-                failed: false,
+            Ok(message) => Some(Ok(MessageGuard {
+                payload: String::from(&v),
+                message: message,
+                consumer: &self,
+                rejected: false,
             })),
         }
     }
@@ -196,19 +203,19 @@ impl Queue {
 
 #[cfg(test)]
 mod test {
-    use super::{Queue, JobGuard};
+    use super::{Consumer, MessageGuard};
     use serde::{Deserialize, Serialize};
     use rmp_serde::Serializer;
     use redis::Commands;
 
     #[derive(Deserialize, Serialize)]
-    struct Job {
+    struct Message {
         id: u64,
     }
 
     fn sample_job_payload(id: u64) -> Vec<u8> {
         let mut buf = Vec::new();
-        let job = Job { id };
+        let job = Message { id };
         job.serialize(&mut Serializer::new(&mut buf)).unwrap();
         buf
     }
@@ -218,11 +225,11 @@ mod test {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Queue::new("default".into(), con2);
+        let worker = Consumer::new("default".into(), con2);
 
-        let _: () = con.rpush(worker.queue(), sample_job_payload(42)).unwrap();
+        let _: () = con.rpush(worker.source_queue(), sample_job_payload(42)).unwrap();
 
-        let j = worker.next::<Job>().unwrap().unwrap();
+        let j = worker.next::<Message>().unwrap().unwrap();
         assert_eq!(42, j.id);
     }
 
@@ -231,14 +238,14 @@ mod test {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Queue::new("default".into(), con2);
-        let bqueue = worker.backup_queue();
+        let worker = Consumer::new("default".into(), con2);
+        let bqueue = worker.processing_queue();
 
         let _: () = con.del(bqueue).unwrap();
-        let _: () = con.lpush(worker.queue(), sample_job_payload(42)).unwrap();
+        let _: () = con.lpush(worker.source_queue(), sample_job_payload(42)).unwrap();
 
         {
-            let j = worker.next::<Job>().unwrap().unwrap();
+            let j = worker.next::<Message>().unwrap().unwrap();
             assert_eq!(42, j.id);
             let in_backup: Vec<Vec<u8>> = con.lrange(bqueue, 0, -1).unwrap();
             assert_eq!(1, in_backup.len());
@@ -254,16 +261,16 @@ mod test {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Queue::new("stopper".into(), con2);
+        let worker = Consumer::new("stopper".into(), con2);
 
-        let _: () = con.del(worker.queue()).unwrap();
-        let _: () = con.lpush(worker.queue(), sample_job_payload(1)).unwrap();
-        let _: () = con.lpush(worker.queue(), sample_job_payload(2)).unwrap();
-        let _: () = con.lpush(worker.queue(), sample_job_payload(3)).unwrap();
+        let _: () = con.del(worker.source_queue()).unwrap();
+        let _: () = con.lpush(worker.source_queue(), sample_job_payload(1)).unwrap();
+        let _: () = con.lpush(worker.source_queue(), sample_job_payload(2)).unwrap();
+        let _: () = con.lpush(worker.source_queue(), sample_job_payload(3)).unwrap();
 
         assert_eq!(3, worker.size());
 
-        while let Some(task) = worker.next::<Job>() {
+        while let Some(task) = worker.next::<Message>() {
             let _task = task.unwrap();
             worker.stop();
         }
@@ -277,16 +284,16 @@ mod test {
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
 
-        let worker = Queue::new("enqueue".into(), con2);
-        let _: () = con.del(worker.queue()).unwrap();
+        let worker = Consumer::new("enqueue".into(), con2);
+        let _: () = con.del(worker.source_queue()).unwrap();
 
         assert_eq!(0, worker.size());
 
-        worker.push(Job { id: 53 }).unwrap();
+        worker.push(Message { id: 53 }).unwrap();
 
         assert_eq!(1, worker.size());
 
-        let j = worker.next::<Job>().unwrap().unwrap();
+        let j = worker.next::<Message>().unwrap().unwrap();
         assert_eq!(53, j.id);
     }
 
@@ -295,18 +302,18 @@ mod test {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Queue::new("failure".into(), con2);
+        let worker = Consumer::new("failure".into(), con2);
 
-        let _: () = con.del(worker.queue()).unwrap();
-        let _: () = con.del(worker.backup_queue()).unwrap();
-        let _: () = con.lpush(worker.queue(), sample_job_payload(1)).unwrap();
+        let _: () = con.del(worker.source_queue()).unwrap();
+        let _: () = con.del(worker.processing_queue()).unwrap();
+        let _: () = con.lpush(worker.source_queue(), sample_job_payload(1)).unwrap();
 
         {
-            let mut task: JobGuard<Job> = worker.next().unwrap().unwrap();
+            let mut task: MessageGuard<Message> = worker.next().unwrap().unwrap();
             task.fail();
         }
 
-        let len: u32 = con.llen(worker.backup_queue()).unwrap();
+        let len: u32 = con.llen(worker.processing_queue()).unwrap();
         assert_eq!(1, len);
     }
 }
