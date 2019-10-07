@@ -1,6 +1,6 @@
 use std::ops::{Deref, Drop};
 use std::cell::{Cell,RefCell};
-use redis::{ErrorKind, RedisResult, Value, Commands};
+use redis::{ErrorKind, RedisResult, Value, Commands, from_redis_value};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -46,18 +46,23 @@ impl<T: Serialize> MessageEncodable for T {
 
 pub struct MessageGuard<'a, T: 'a> {
     message: T,
-    payload: &'a str,
+    payload: Vec<u8>,
     consumer: &'a Consumer,
+    acked: bool,
     rejected: bool,
 }
 
 impl<'a, T> MessageGuard<'a, T> {
-    pub fn payload(&self) -> &str {
-        self.payload
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
     }
 
     pub fn message(&self) -> &T {
         &self.message
+    }
+
+    pub fn ack(&mut self) {
+        self.acked = true;
     }
 
     /// Reject the current job, in order to move it to the unacked queue
@@ -81,17 +86,19 @@ impl<'a, T> Deref for MessageGuard<'a, T> {
 
 impl<'a, T> Drop for MessageGuard<'a, T> {
     fn drop(&mut self) {
-        if !self.rejected {
-            self.consumer
-                .client
-                .borrow_mut()
-                .lpush(self.consumer.unacked_queue_name.as_str(), self.payload: &str);
-            let backup = self.consumer.processing_queue_name.as_str();
-            self.consumer
-                .client
-                .borrow_mut()
-                .lpop(backup)
-                .expect("LPOP from backup queue failed");
+        if !self.rejected && !self.acked {
+            let _: RedisResult<Value> = redis::pipe()
+                .atomic()
+                .cmd("LPUSH")
+                .arg(self.consumer.unacked_queue_name.as_str())
+                .arg(self.payload.clone())
+                .ignore()
+                .cmd("LREM")
+                .arg(self.consumer.processing_queue_name.as_str())
+                .arg(1)
+                .arg(self.payload.clone())
+                .ignore()
+                .query(&mut *self.consumer.client.borrow_mut());
         }
     }
 }
@@ -192,9 +199,10 @@ impl Consumer {
         match T::decode_job(&v) {
             Err(e) => Some(Err(e)),
             Ok(message) => Some(Ok(MessageGuard {
-                payload: String::from(&v),
+                payload: from_redis_value(&v).unwrap(),
                 message: message,
                 consumer: &self,
+                acked: false,
                 rejected: false,
             })),
         }
@@ -310,7 +318,7 @@ mod test {
 
         {
             let mut task: MessageGuard<Message> = worker.next().unwrap().unwrap();
-            task.fail();
+            task.reject();
         }
 
         let len: u32 = con.llen(worker.processing_queue()).unwrap();
