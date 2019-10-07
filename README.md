@@ -42,6 +42,6 @@ that periodically returns them to the source queue. If the garbage collector
 does not run, *unack* queues are essentially dead-letter queues and could grow
 without bound.
 
-<div class="center">
+<p align="center">
   <img alt="Orizuru architecture" src="https://github.com/rubik/orizuru/raw/master/images/architecture.png" height="470" />
-</div>
+</p>
