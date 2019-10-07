@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="Orizuru logo" src="https://github.com/rubik/orizuru/raw/master/logo.png" height="130" />
+  <img alt="Orizuru logo" src="https://github.com/rubik/orizuru/raw/master/images/logo.png" height="130" />
 </div>
 
 <div align="center">
@@ -41,3 +41,7 @@ Optionally, unacknowledged messages can be collected by the garbage collector
 that periodically returns them to the source queue. If the garbage collector
 does not run, *unack* queues are essentially dead-letter queues and could grow
 without bound.
+
+<div class="center">
+  <img alt="Orizuru architecture" src="https://github.com/rubik/orizuru/raw/master/images/architecture.png" height="470" />
+</div>
