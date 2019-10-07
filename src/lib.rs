@@ -151,14 +151,19 @@ impl Consumer {
         self.stopped.get()
     }
 
-    /// Get the full queue name
+    /// Get the source queue name
     pub fn source_queue(&self) -> &str {
         &self.source_queue_name
     }
 
-    /// Get the full backup queue name
+    /// Get the processing queue name
     pub fn processing_queue(&self) -> &str {
         &self.processing_queue_name
+    }
+
+    /// Get the unacked queue name
+    pub fn unacked_queue(&self) -> &str {
+        &self.unacked_queue_name
     }
 
     /// Get the number of remaining jobs in the queue
@@ -329,7 +334,7 @@ mod test {
     }
 
     #[test]
-    fn does_not_drop_failed() {
+    fn does_not_drop_unacked() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
@@ -337,14 +342,15 @@ mod test {
 
         let _: () = con.del(worker.source_queue()).unwrap();
         let _: () = con.del(worker.processing_queue()).unwrap();
+        let _: () = con.del(worker.unacked_queue()).unwrap();
         let _: () = con.lpush(worker.source_queue(), sample_job_payload(1)).unwrap();
 
         {
-            let mut task: MessageGuard<Message> = worker.next().unwrap().unwrap();
-            task.reject();
+            let mut m: MessageGuard<Message> = worker.next().unwrap().unwrap();
+            m.reject();
         }
 
-        let len: u32 = con.llen(worker.processing_queue()).unwrap();
-        assert_eq!(1, len);
+        assert_eq!(0, con.llen(worker.processing_queue()).unwrap());
+        assert_eq!(1, con.llen(worker.unacked_queue()).unwrap());
     }
 }
