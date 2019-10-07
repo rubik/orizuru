@@ -23,12 +23,12 @@
 Queues are backed by Redis lists and as such they support multiple producers
 and consumers:
 
-* To publish a message to a *source* queue, a producer runs an
+* To publish a message to a **source** queue, a producer runs an
   [`LPUSH`](https://redis.io/commands/lpush) command;
 * Periodically, a consumer fetches messages from the *source* queue and pushes
-  them to its own *processing* queue. Then, it may choose to acknowledge them
+  them to its own **processing** queue. Then, it may choose to acknowledge them
   or reject them. Acknowledged messages are removed from the *processing*
-  queue, while rejected messages are moved to the *unack* queue.
+  queue, while rejected messages are moved to the **unack** queue.
 
 Each queue can have an unlimited number of concurrent consumers.  Consumers
 fetch messages with the [`BRPOPLPUSH`](https://redis.io/commands/brpoplpush)
@@ -46,5 +46,14 @@ without bound.
   <img alt="Orizuru architecture" src="https://github.com/rubik/orizuru/raw/master/images/architecture.png" height="470" />
 </p>
 
+# Usage patterns
+Orizuru is a message queue, but it can be specialized into a *job* queue, when
+the messages represent job payloads. However, the acknowledgement pattern
+differs between the two. In the case of a generic message queue, messages are
+acknowledged as soon as they are received, as that is what matters. In the case
+of a job queue, on the other hand, messages are acknowledged after the job has
+been executed (maybe even successfully). That protects the jobs from random
+failures or worker crashes. In both cases the presence of a garbage collector
+is essential to ensure that the deliveries/executions are retried.
 
 <p align="center"><sub>Logo image made by <a href="https://www.flaticon.com/authors/smashicons" title="Smashicons">Smashicons</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>.</p>
