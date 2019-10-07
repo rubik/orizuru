@@ -60,4 +60,4 @@ is essential to ensure that the deliveries/executions are retried.
 
 ISC
 
-<p align="center"><sub>Logo image based on the one made by <a href="https://www.flaticon.com/authors/smashicons" title="Smashicons">Smashicons</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>.</p>
+<p align="center"><sub>Logo image based on the one made by <a href="https://www.flaticon.com/authors/smashicons" title="Smashicons">Smashicons</a> for <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>.</p>
