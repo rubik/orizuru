@@ -23,21 +23,19 @@
 Queues are backed by Redis lists and as such they support multiple producers
 and consumers:
 
-    * To publish a message to a *source* queue, a producer runs an
-      [`LPUSH`](https://redis.io/commands/lpush) command;
-    * Periodically, a consumer fetches messages from the *source* queue and
-      pushes them to its own *processing* queue. Then, it may choose to
-      acknowledge them or reject them. Acknowledged messages are removed from
-      the *processing* queue, while rejected messages are moved to the *unack*
-      queue.
+* To publish a message to a *source* queue, a producer runs an
+  [`LPUSH`](https://redis.io/commands/lpush) command;
+* Periodically, a consumer fetches messages from the *source* queue and pushes
+  them to its own *processing* queue. Then, it may choose to acknowledge them
+  or reject them. Acknowledged messages are removed from the *processing*
+  queue, while rejected messages are moved to the *unack* queue.
 
-Each queue can have an unlimited number of concurrent consumers.
-Consumers fetch messages with the
-[`BRPOPLPUSH`](https://redis.io/commands/brpoplpush) command, that blocks until
-at least one message is available on the source queue, and then pushes it to
-its processing queue. This operation is atomic, which means that only one
-consumer can receive the message even if there are multiple consumers fetching
-messages from the *source* queue.
+Each queue can have an unlimited number of concurrent consumers.  Consumers
+fetch messages with the [`BRPOPLPUSH`](https://redis.io/commands/brpoplpush)
+command, that blocks until at least one message is available on the source
+queue, and then pushes it to its processing queue. This operation is atomic,
+which means that only one consumer can receive the message even if there are
+multiple consumers fetching messages from the *source* queue.
 
 Optionally, unacknowledged messages can be collected by the garbage collector
 that periodically returns them to the source queue. If the garbage collector
