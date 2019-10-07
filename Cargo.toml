@@ -1,11 +1,11 @@
 [package]
 name = "orizuru"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Michele Lacchia <michelelacchia@gmail.com>"]
 edition = "2018"
 
 readme = "README.md"
-license = "MIT"
+license = "ISC"
 
 include = [
   "README.md",
