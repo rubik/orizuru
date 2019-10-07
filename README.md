@@ -45,3 +45,6 @@ without bound.
 <p align="center">
   <img alt="Orizuru architecture" src="https://github.com/rubik/orizuru/raw/master/images/architecture.png" height="470" />
 </p>
+
+
+<div style="font-size: 0.7rem">Logo image made by <a href="https://www.flaticon.com/authors/smashicons" title="Smashicons">Smashicons</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
