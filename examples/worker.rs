@@ -1,4 +1,4 @@
-use charon::Consumer;
+use orizuru::Consumer;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -9,7 +9,7 @@ struct Job {
 fn main() {
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let con = client.get_connection().unwrap();
-    let worker = Consumer::new("default".into(), con);
+    let worker = Consumer::new("consumer-1".into(), "default".into(), con);
 
     println!("Starting consumer with queue `default`");
 

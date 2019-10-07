@@ -63,11 +63,27 @@ impl<'a, T> MessageGuard<'a, T> {
 
     pub fn ack(&mut self) {
         self.acked = true;
+        let _: RedisResult<Value> = self.consumer
+            .client
+            .borrow_mut()
+            .lrem(self.consumer.processing_queue_name.as_str(), 1, self.payload.clone());
     }
 
     /// Reject the current job, in order to move it to the unacked queue
     pub fn reject(&mut self) {
         self.rejected = true;
+        let _: RedisResult<Value> = redis::pipe()
+            .atomic()
+            .cmd("LPUSH")
+            .arg(self.consumer.unacked_queue_name.as_str())
+            .arg(self.payload.clone())
+            .ignore()
+            .cmd("LREM")
+            .arg(self.consumer.processing_queue_name.as_str())
+            .arg(1)
+            .arg(self.payload.clone())
+            .ignore()
+            .query(&mut *self.consumer.client.borrow_mut());
     }
 
     /// Get access to the wrapper queue.
@@ -87,24 +103,14 @@ impl<'a, T> Deref for MessageGuard<'a, T> {
 impl<'a, T> Drop for MessageGuard<'a, T> {
     fn drop(&mut self) {
         if !self.rejected && !self.acked {
-            let _: RedisResult<Value> = redis::pipe()
-                .atomic()
-                .cmd("LPUSH")
-                .arg(self.consumer.unacked_queue_name.as_str())
-                .arg(self.payload.clone())
-                .ignore()
-                .cmd("LREM")
-                .arg(self.consumer.processing_queue_name.as_str())
-                .arg(1)
-                .arg(self.payload.clone())
-                .ignore()
-                .query(&mut *self.consumer.client.borrow_mut());
+            self.reject();
         }
     }
 }
 
 
 pub struct Consumer {
+    name: String,
     source_queue_name: String,
     processing_queue_name: String,
     unacked_queue_name: String,
@@ -114,18 +120,18 @@ pub struct Consumer {
 
 
 impl Consumer {
-    pub fn new(name: String, client: redis::Connection) -> Consumer {
-        let source_queue_name = format!("charon:queue:{}", name);
+    pub fn new(name: String, source_queue_name: String, client: redis::Connection) -> Consumer {
         let processing_queue_name = format!(
-            "{}:processing",
-            source_queue_name,
+            "orizuru:consumers:{}:processing",
+            name,
         );
         let unacked_queue_name = format!(
-            "{}:unacked",
-            source_queue_name,
+            "orizuru:consumers:{}:unacked",
+            name,
         );
 
         Consumer {
+            name: name,
             source_queue_name: source_queue_name,
             processing_queue_name: processing_queue_name,
             unacked_queue_name: unacked_queue_name,
@@ -233,7 +239,7 @@ mod test {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Consumer::new("default".into(), con2);
+        let worker = Consumer::new("consumer-1".into(), "default".into(), con2);
 
         let _: () = con.rpush(worker.source_queue(), sample_job_payload(42)).unwrap();
 
@@ -242,11 +248,11 @@ mod test {
     }
 
     #[test]
-    fn releases_job() {
+    fn releases_job_unacked() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Consumer::new("default".into(), con2);
+        let worker = Consumer::new("consumer-2".into(), "default".into(), con2);
         let bqueue = worker.processing_queue();
 
         let _: () = con.del(bqueue).unwrap();
@@ -265,11 +271,28 @@ mod test {
     }
 
     #[test]
+    fn releases_job_acked() {
+        let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
+        let mut con = client.get_connection().unwrap();
+        let con2 = client.get_connection().unwrap();
+        let worker = Consumer::new("consumer-3".into(), "default".into(), con2);
+        let bqueue = worker.processing_queue();
+
+        let _: () = con.del(bqueue).unwrap();
+        let _: () = con.lpush(worker.source_queue(), sample_job_payload(42)).unwrap();
+
+        let mut m = worker.next::<Message>().unwrap().unwrap();
+        m.ack();
+        let in_backup: u32 = con.llen(bqueue).unwrap();
+        assert_eq!(0, in_backup);
+    }
+
+    #[test]
     fn can_be_stopped() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Consumer::new("stopper".into(), con2);
+        let worker = Consumer::new("consumer-4".into(), "stopper".into(), con2);
 
         let _: () = con.del(worker.source_queue()).unwrap();
         let _: () = con.lpush(worker.source_queue(), sample_job_payload(1)).unwrap();
@@ -292,7 +315,7 @@ mod test {
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
 
-        let worker = Consumer::new("enqueue".into(), con2);
+        let worker = Consumer::new("consumer-5".into(), "enqueue".into(), con2);
         let _: () = con.del(worker.source_queue()).unwrap();
 
         assert_eq!(0, worker.size());
@@ -310,7 +333,7 @@ mod test {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
-        let worker = Consumer::new("failure".into(), con2);
+        let worker = Consumer::new("consumer-6".into(), "failure".into(), con2);
 
         let _: () = con.del(worker.source_queue()).unwrap();
         let _: () = con.del(worker.processing_queue()).unwrap();

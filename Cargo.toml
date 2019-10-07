@@ -1,5 +1,5 @@
 [package]
-name = "charon"
+name = "orizuru"
 version = "0.1.0"
 authors = ["Michele Lacchia <michelelacchia@gmail.com>"]
 edition = "2018"
