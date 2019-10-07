@@ -56,4 +56,4 @@ been executed (maybe even successfully). That protects the jobs from random
 failures or worker crashes. In both cases the presence of a garbage collector
 is essential to ensure that the deliveries/executions are retried.
 
-<p align="center"><sub>Logo image made by <a href="https://www.flaticon.com/authors/smashicons" title="Smashicons">Smashicons</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>.</p>
+<p align="center"><sub>Logo image based on the one made by <a href="https://www.flaticon.com/authors/smashicons" title="Smashicons">Smashicons</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>.</p>
