@@ -40,8 +40,9 @@ pub trait MessageEncodable {
 impl<T: DeserializeOwned> MessageDecodable for T {
     fn decode_job(value: &Value) -> RedisResult<T> {
         match *value {
-            Value::Data(ref v) => rmp_serde::decode::from_slice(v)
-                .map_err(|_| From::from((ErrorKind::TypeError, "Msgpack decode failed"))),
+            Value::Data(ref v) => rmp_serde::decode::from_slice(v).map_err(|_| {
+                From::from((ErrorKind::TypeError, "Msgpack decode failed"))
+            }),
             _ => Err((ErrorKind::TypeError, "Can only decode from a string"))?,
         }
     }
@@ -91,9 +92,11 @@ impl<'a, T> MessageGuard<'a, T> {
     /// Acknowledge the message and remove it from the *processing* queue.
     pub fn ack(&mut self) -> RedisResult<Value> {
         self.state = MessageState::Acked;
-        self.client
-            .borrow_mut()
-            .lrem(self.processing_queue_name.as_str(), 1, self.payload.clone())
+        self.client.borrow_mut().lrem(
+            self.processing_queue_name.as_str(),
+            1,
+            self.payload.clone(),
+        )
     }
 
     /// Reject the message and push it from the *processing* queue to the

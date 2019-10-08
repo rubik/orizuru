@@ -12,8 +12,15 @@ pub struct Consumer {
 }
 
 impl Consumer {
-    pub fn new(name: String, source_queue_name: String, client: redis::Connection) -> Consumer {
-        let processing_queue_name = format!("orizuru:consumers:{}:processing", name,);
+    pub fn new(
+        name: String,
+        source_queue_name: String,
+        client: redis::Connection,
+    ) -> Consumer {
+        let processing_queue_name = format!(
+            "orizuru:consumers:{}:processing",
+            name,
+        );
         let unacked_queue_name = format!("orizuru:consumers:{}:unacked", name,);
 
         Consumer {
@@ -61,7 +68,10 @@ impl Consumer {
     }
 
     /// Push a new job to the source queue.
-    pub fn push<T: message::MessageEncodable>(&self, job: T) -> RedisResult<()> {
+    pub fn push<T: message::MessageEncodable>(
+        &self,
+        job: T,
+    ) -> RedisResult<()> {
         self.client
             .borrow_mut()
             .lpush(self.source_queue_name.as_str(), job.encode_job())
@@ -87,7 +97,10 @@ impl Consumer {
             v = match self.client.borrow_mut().brpoplpush(source, processing, 0) {
                 Ok(v) => v,
                 Err(_) => {
-                    return Some(Err(From::from((ErrorKind::TypeError, "next failed"))));
+                    return Some(Err(From::from((
+                        ErrorKind::TypeError,
+                        "next failed",
+                    ))));
                 }
             };
         }

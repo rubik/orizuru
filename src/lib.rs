@@ -3,7 +3,9 @@ mod message;
 mod producer;
 
 pub use consumer::Consumer;
-pub use message::{MessageDecodable, MessageEncodable, MessageGuard, MessageState};
+pub use message::{
+    MessageDecodable, MessageEncodable, MessageGuard, MessageState,
+};
 pub use producer::Producer;
 
 #[cfg(test)]

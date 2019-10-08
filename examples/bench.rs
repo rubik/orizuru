@@ -57,7 +57,8 @@ fn main() {
         let now = Instant::now();
 
         loop {
-            let count: u64 = redis::cmd("LLEN").arg(queue_name).query(&mut con).unwrap();
+            let count: u64 =
+                redis::cmd("LLEN").arg(queue_name).query(&mut con).unwrap();
             if count == 0 {
                 let elapsed = now.elapsed().as_secs();
                 let per_second = total as f64 / elapsed as f64;
