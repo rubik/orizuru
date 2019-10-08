@@ -2,6 +2,8 @@ use crate::message;
 use redis::{from_redis_value, Commands, ErrorKind, RedisResult, Value};
 use std::cell::{Cell, RefCell};
 
+const CONSUMERS_KEY: &str = "orizuru:consumers";
+
 pub struct Consumer {
     name: String,
     source_queue_name: String,
@@ -33,10 +35,22 @@ impl Consumer {
         }
     }
 
+    /// Register this consumer to enable automatic discovery by the garbage
+    /// collector.
+    pub fn register(&self) -> RedisResult<Value> {
+        self.client
+            .borrow_mut()
+            .sadd(CONSUMERS_KEY, self.name.as_str())
+    }
+
     /// Stop processing the queue.
-    /// The next `Consumer::next()` call will return `None`.
-    pub fn stop(&self) {
+    /// The consumer will be deregistered, and the next `Consumer::next()` call
+    /// will return `None`.
+    pub fn stop(&self) -> RedisResult<Value> {
         self.stopped.set(true);
+        self.client
+            .borrow_mut()
+            .srem(CONSUMERS_KEY, self.name.as_str())
     }
 
     /// Check if queue processing is stopped.
