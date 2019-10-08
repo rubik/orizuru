@@ -1,4 +1,4 @@
-use orizuru::Consumer;
+use orizuru::{Consumer, Producer};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::str::FromStr;
@@ -19,7 +19,7 @@ impl Job {
 fn load(n: usize) {
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let con = client.get_connection().unwrap();
-    let q = Consumer::new("consumer-1".into(), "default".into(), con);
+    let q = Producer::new("default".into(), con);
 
     let now = Instant::now();
     for i in 0..n {
