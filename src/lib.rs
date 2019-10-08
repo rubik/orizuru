@@ -81,7 +81,7 @@ mod test {
             .unwrap();
 
         let mut m = worker.next::<Message>().unwrap().unwrap();
-        m.ack();
+        let _ = m.ack();
         let in_backup: u32 = con.llen(bqueue).unwrap();
         assert_eq!(0, in_backup);
     }
@@ -108,7 +108,7 @@ mod test {
 
         while let Some(task) = worker.next::<Message>() {
             let _task = task.unwrap();
-            worker.stop();
+            let _ = worker.stop();
         }
 
         assert_eq!(2, worker.size());
@@ -153,7 +153,7 @@ mod test {
 
         {
             let mut m: MessageGuard<Message> = worker.next().unwrap().unwrap();
-            m.reject();
+            let _ = m.reject();
         }
 
         assert_eq!(0, con.llen(worker.processing_queue()).unwrap());
