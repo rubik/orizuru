@@ -30,7 +30,7 @@ and consumers:
   or reject them. Acknowledged messages are removed from the *processing*
   queue, while rejected messages are moved to the **unack** queue.
 
-Each queue can have an unlimited number of concurrent consumers.  Consumers
+Each queue can have an unlimited number of concurrent consumers. Consumers
 fetch messages with the [`BRPOPLPUSH`](https://redis.io/commands/brpoplpush)
 command, that blocks until at least one message is available on the source
 queue, and then pushes it to its processing queue. This operation is atomic,
@@ -45,6 +45,13 @@ without bound.
 <p align="center">
   <img alt="Orizuru architecture" src="https://github.com/rubik/orizuru/raw/master/images/architecture.png" height="470" />
 </p>
+
+## Simplicity
+In line with Rust's philosophy of not including non-essential features that may
+just be bloat, Orizuru is designed with simplicity in mind. This informs both
+the public API, which is minimal, and the implementation. All the functionality
+is implemented as a library, so that the user is free to integrate it in their
+architecture however they wish.
 
 ## API
 
@@ -69,7 +76,7 @@ without bound.
 The traits `MessageEncodable` and `MessageDecodable` ensure that the message
 can be serialized and deserialized to/from Redis. They are implemented by
 default for all the objects that implements the `Serialize` and `Deserialized`
-traits from the serde library, by using the [Msgpack](https://msgpack.org/)
+traits from the serde crate, by using the [Msgpack](https://msgpack.org/)
 encoding. This is a binary encoding analogous to JSON. It was chosen because
 of the encoding and decoding speed and space efficiency over JSON.
 
