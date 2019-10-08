@@ -1,15 +1,14 @@
-mod message;
 mod consumer;
+mod message;
 mod producer;
 
 pub use consumer::Consumer;
+pub use message::{MessageDecodable, MessageEncodable, MessageGuard, MessageState};
 pub use producer::Producer;
-pub use message::{MessageEncodable, MessageDecodable, MessageGuard};
-
 
 #[cfg(test)]
 mod test {
-    use super::{Consumer, Producer, MessageGuard};
+    use super::{Consumer, MessageGuard, Producer};
     use redis::Commands;
     use rmp_serde::Serializer;
     use serde::{Deserialize, Serialize};

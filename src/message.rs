@@ -1,8 +1,16 @@
 use redis::{Commands, ErrorKind, RedisResult, Value};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::cell::RefCell;
 use std::ops::{Deref, Drop};
-use std::cell::{RefCell};
+
+#[derive(PartialEq)]
+pub enum MessageState {
+    Unacked,
+    Acked,
+    Rejected,
+    Pushed,
+}
 
 /// Message objects that can be reconstructed from the data stored in Redis.
 ///
@@ -51,20 +59,24 @@ pub struct MessageGuard<'a, T: 'a> {
     client: &'a RefCell<redis::Connection>,
     processing_queue_name: String,
     unacked_queue_name: String,
-    acked: bool,
-    rejected: bool,
+    state: MessageState,
 }
 
 impl<'a, T> MessageGuard<'a, T> {
-    pub fn new(message: T, payload: Vec<u8>, client: &'a RefCell<redis::Connection>, processing_queue_name: String, unacked_queue_name: String, acked: bool, rejected: bool) -> MessageGuard<'a, T> {
+    pub fn new(
+        message: T,
+        payload: Vec<u8>,
+        client: &'a RefCell<redis::Connection>,
+        processing_queue_name: String,
+        unacked_queue_name: String,
+    ) -> MessageGuard<'a, T> {
         MessageGuard {
             message,
             payload,
             client,
             processing_queue_name,
             unacked_queue_name,
-            acked,
-            rejected,
+            state: MessageState::Unacked,
         }
     }
 
@@ -78,22 +90,26 @@ impl<'a, T> MessageGuard<'a, T> {
 
     /// Acknowledge the message and remove it from the *processing* queue.
     pub fn ack(&mut self) -> RedisResult<Value> {
-        self.acked = true;
-        self.client.borrow_mut().lrem(
-            self.processing_queue_name.as_str(),
-            1,
-            self.payload.clone(),
-        )
+        self.state = MessageState::Acked;
+        self.client
+            .borrow_mut()
+            .lrem(self.processing_queue_name.as_str(), 1, self.payload.clone())
     }
 
     /// Reject the message and push it from the *processing* queue to the
     /// *unack* queue.
     pub fn reject(&mut self) -> RedisResult<Value> {
-        self.rejected = true;
+        self.state = MessageState::Rejected;
+        self.push(self.unacked_queue_name.clone())
+    }
+
+    /// Push the message from the *processing* queue to the specified queue.
+    pub fn push(&mut self, push_queue_name: String) -> RedisResult<Value> {
+        self.state = MessageState::Pushed;
         redis::pipe()
             .atomic()
             .cmd("LPUSH")
-            .arg(self.unacked_queue_name.as_str())
+            .arg(push_queue_name.as_str())
             .arg(self.payload.clone())
             .ignore()
             .cmd("LREM")
@@ -119,7 +135,7 @@ impl<'a, T> Deref for MessageGuard<'a, T> {
 
 impl<'a, T> Drop for MessageGuard<'a, T> {
     fn drop(&mut self) {
-        if !self.rejected && !self.acked {
+        if self.state == MessageState::Unacked {
             let _ = self.reject();
         }
     }

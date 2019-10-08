@@ -1,6 +1,6 @@
+use crate::message;
 use redis::{Commands, RedisResult};
 use std::cell::RefCell;
-use crate::message;
 
 pub struct Producer {
     queue_name: String,

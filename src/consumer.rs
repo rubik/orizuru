@@ -1,6 +1,6 @@
+use crate::message;
 use redis::{from_redis_value, Commands, ErrorKind, RedisResult, Value};
 use std::cell::{Cell, RefCell};
-use crate::message;
 
 pub struct Consumer {
     name: String,
@@ -72,7 +72,9 @@ impl Consumer {
     /// This method blocks and waits until a new job is available. It returns
     /// None if the consumer has been stopped (with the stop() method).
     /// Otherwise it returns a RedisResult value that may wrap the message.
-    pub fn next<T: message::MessageDecodable>(&self) -> Option<RedisResult<message::MessageGuard<T>>> {
+    pub fn next<T: message::MessageDecodable>(
+        &self,
+    ) -> Option<RedisResult<message::MessageGuard<T>>> {
         if self.is_stopped() {
             return None;
         }
@@ -108,8 +110,6 @@ impl Consumer {
                 &self.client,
                 self.processing_queue_name.clone(),
                 self.unacked_queue_name.clone(),
-                false,
-                false,
             ))),
         }
     }
