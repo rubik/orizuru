@@ -21,4 +21,12 @@ impl Producer {
             .borrow_mut()
             .lpush(self.queue_name.as_str(), job.encode_job())
     }
+
+    /// Get the number of remaining jobs in the queue.
+    pub fn size(&self) -> u64 {
+        self.client
+            .borrow_mut()
+            .llen(self.queue_name.as_str())
+            .unwrap_or(0)
+    }
 }

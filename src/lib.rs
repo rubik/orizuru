@@ -9,8 +9,7 @@ pub use message::{MessageEncodable, MessageDecodable, MessageGuard};
 
 #[cfg(test)]
 mod test {
-    use super::consumer::Consumer;
-    use super::message::MessageGuard;
+    use super::{Consumer, Producer, MessageGuard};
     use redis::Commands;
     use rmp_serde::Serializer;
     use serde::{Deserialize, Serialize};
@@ -115,18 +114,22 @@ mod test {
     }
 
     #[test]
-    fn can_enqueue() {
+    fn producer_can_enqueue() {
         let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
         let mut con = client.get_connection().unwrap();
         let con2 = client.get_connection().unwrap();
+        let con3 = client.get_connection().unwrap();
 
-        let worker = Consumer::new("consumer-5".into(), "enqueue".into(), con2);
+        let prod = Producer::new("queue-0".into(), con2);
+        let worker = Consumer::new("consumer-5".into(), "queue-0".into(), con3);
         let _: () = con.del(worker.source_queue()).unwrap();
 
+        assert_eq!(0, prod.size());
         assert_eq!(0, worker.size());
 
-        worker.push(Message { id: 53 }).unwrap();
+        prod.push(Message { id: 53 }).unwrap();
 
+        assert_eq!(1, prod.size());
         assert_eq!(1, worker.size());
 
         let j = worker.next::<Message>().unwrap().unwrap();
