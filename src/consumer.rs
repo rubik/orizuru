@@ -19,11 +19,9 @@ impl Consumer {
         source_queue_name: String,
         client: redis::Connection,
     ) -> Consumer {
-        let processing_queue_name = format!(
-            "orizuru:consumers:{}:processing",
-            name,
-        );
-        let unacked_queue_name = format!("orizuru:consumers:{}:unacked", name,);
+        let processing_queue_name =
+            format!("orizuru:consumers:{}:processing", name);
+        let unacked_queue_name = format!("orizuru:consumers:{}:unacked", name);
 
         Consumer {
             name: name,
@@ -82,10 +80,7 @@ impl Consumer {
     }
 
     /// Push a new job to the source queue.
-    pub fn push<T: message::MessageEncodable>(
-        &self,
-        job: T,
-    ) -> RedisResult<()> {
+    pub fn push<T: message::MessageEncodable>(&self, job: T) -> RedisResult<()> {
         self.client
             .borrow_mut()
             .lpush(self.source_queue_name.as_str(), job.encode_job())
