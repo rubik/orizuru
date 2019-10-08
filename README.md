@@ -46,6 +46,29 @@ without bound.
   <img alt="Orizuru architecture" src="https://github.com/rubik/orizuru/raw/master/images/architecture.png" height="470" />
 </p>
 
+## API
+
+`Producer.push<T: MessageEncodable>(message: T) -> Option<RedisResult<i32>>`
+    Push a message onto a *source* queue.
+
+`Consumer.next<T: MessageDecodable>() -> Option<RedisResult<MessageGuard<T>>>`
+    Fetch the next message from the queue. This method blocks and waits until a
+    new message is available.
+
+`MessageGuard.ack() -> RedisResult<Value>`
+    Acknowledge the message and remove it from the *processing* queue.
+
+`MessageGuard.reject() -> RedisResult<Value>`
+    Reject the message and push it from the *processing* queue to the *unack*
+    queue.
+
+The traits `MessageEncodable` and `MessageDecodable` ensure that the message
+can be serialized and deserialized to/from Redis. They are implemented by
+default for all the objects that implements the `Serialize` and `Deserialized`
+traits from the serde library, by using the [Msgpack](https://msgpack.org/)
+encoding. This is a binary encoding analogous to JSON. It was chosen because
+of the encoding and decoding speed and space efficiency over JSON.
+
 # Usage patterns
 Orizuru is a message queue, but it can be specialized into a *job* queue, when
 the messages represent job payloads. However, the acknowledgement pattern
