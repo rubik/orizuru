@@ -79,13 +79,6 @@ impl Consumer {
             .unwrap_or(0)
     }
 
-    /// Push a new job to the source queue.
-    pub fn push<T: message::MessageEncodable>(&self, job: T) -> RedisResult<()> {
-        self.client
-            .borrow_mut()
-            .lpush(self.source_queue_name.as_str(), job.encode_job())
-    }
-
     /// Grab the next job from the queue.
     ///
     /// This method blocks and waits until a new job is available. It returns
