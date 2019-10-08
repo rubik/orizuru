@@ -1,7 +1,7 @@
 use orizuru::Consumer;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use std::thread::sleep;
+use std::time::Duration;
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Job {

@@ -1,9 +1,9 @@
 use orizuru::Consumer;
-use serde::{Serialize, Deserialize};
-use std::str::FromStr;
+use serde::{Deserialize, Serialize};
 use std::process::Command;
+use std::str::FromStr;
 use std::time::{Duration, Instant};
-use std::{thread, process};
+use std::{process, thread};
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Job {
@@ -69,7 +69,6 @@ fn main() {
             thread::sleep(Duration::from_millis(200));
         }
     });
-
 
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let con = client.get_connection().unwrap();

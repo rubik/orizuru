@@ -1,8 +1,8 @@
-use std::ops::{Deref, Drop};
-use std::cell::{Cell,RefCell};
-use redis::{ErrorKind, RedisResult, Value, Commands, from_redis_value};
-use serde::Serialize;
+use redis::{from_redis_value, Commands, ErrorKind, RedisResult, Value};
 use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::cell::{Cell, RefCell};
+use std::ops::{Deref, Drop};
 
 /// Message objects that can be reconstructed from the data stored in Redis
 ///
@@ -63,10 +63,11 @@ impl<'a, T> MessageGuard<'a, T> {
 
     pub fn ack(&mut self) -> RedisResult<Value> {
         self.acked = true;
-        self.consumer
-            .client
-            .borrow_mut()
-            .lrem(self.consumer.processing_queue_name.as_str(), 1, self.payload.clone())
+        self.consumer.client.borrow_mut().lrem(
+            self.consumer.processing_queue_name.as_str(),
+            1,
+            self.payload.clone(),
+        )
     }
 
     /// Reject the current job, in order to move it to the unacked queue
@@ -108,7 +109,6 @@ impl<'a, T> Drop for MessageGuard<'a, T> {
     }
 }
 
-
 pub struct Consumer {
     name: String,
     source_queue_name: String,
@@ -118,17 +118,10 @@ pub struct Consumer {
     client: RefCell<redis::Connection>,
 }
 
-
 impl Consumer {
     pub fn new(name: String, source_queue_name: String, client: redis::Connection) -> Consumer {
-        let processing_queue_name = format!(
-            "orizuru:consumers:{}:processing",
-            name,
-        );
-        let unacked_queue_name = format!(
-            "orizuru:consumers:{}:unacked",
-            name,
-        );
+        let processing_queue_name = format!("orizuru:consumers:{}:processing", name,);
+        let unacked_queue_name = format!("orizuru:consumers:{}:unacked", name,);
 
         Consumer {
             name: name,
@@ -168,12 +161,17 @@ impl Consumer {
 
     /// Get the number of remaining jobs in the queue
     pub fn size(&self) -> u64 {
-        self.client.borrow_mut().llen(self.source_queue_name.as_str()).unwrap_or(0)
+        self.client
+            .borrow_mut()
+            .llen(self.source_queue_name.as_str())
+            .unwrap_or(0)
     }
 
     /// Push a new job to the queue
     pub fn push<T: MessageEncodable>(&self, job: T) -> RedisResult<()> {
-        self.client.borrow_mut().lpush(self.source_queue_name.as_str(), job.encode_job())
+        self.client
+            .borrow_mut()
+            .lpush(self.source_queue_name.as_str(), job.encode_job())
     }
 
     /// Grab the next job from the queue
@@ -223,9 +221,9 @@ impl Consumer {
 #[cfg(test)]
 mod test {
     use super::{Consumer, MessageGuard};
-    use serde::{Deserialize, Serialize};
-    use rmp_serde::Serializer;
     use redis::Commands;
+    use rmp_serde::Serializer;
+    use serde::{Deserialize, Serialize};
 
     #[derive(Deserialize, Serialize)]
     struct Message {
@@ -246,7 +244,9 @@ mod test {
         let con2 = client.get_connection().unwrap();
         let worker = Consumer::new("consumer-1".into(), "default".into(), con2);
 
-        let _: () = con.rpush(worker.source_queue(), sample_job_payload(42)).unwrap();
+        let _: () = con
+            .rpush(worker.source_queue(), sample_job_payload(42))
+            .unwrap();
 
         let j = worker.next::<Message>().unwrap().unwrap();
         assert_eq!(42, j.id);
@@ -261,7 +261,9 @@ mod test {
         let bqueue = worker.processing_queue();
 
         let _: () = con.del(bqueue).unwrap();
-        let _: () = con.lpush(worker.source_queue(), sample_job_payload(42)).unwrap();
+        let _: () = con
+            .lpush(worker.source_queue(), sample_job_payload(42))
+            .unwrap();
 
         {
             let j = worker.next::<Message>().unwrap().unwrap();
@@ -284,7 +286,9 @@ mod test {
         let bqueue = worker.processing_queue();
 
         let _: () = con.del(bqueue).unwrap();
-        let _: () = con.lpush(worker.source_queue(), sample_job_payload(42)).unwrap();
+        let _: () = con
+            .lpush(worker.source_queue(), sample_job_payload(42))
+            .unwrap();
 
         let mut m = worker.next::<Message>().unwrap().unwrap();
         m.ack();
@@ -300,9 +304,15 @@ mod test {
         let worker = Consumer::new("consumer-4".into(), "stopper".into(), con2);
 
         let _: () = con.del(worker.source_queue()).unwrap();
-        let _: () = con.lpush(worker.source_queue(), sample_job_payload(1)).unwrap();
-        let _: () = con.lpush(worker.source_queue(), sample_job_payload(2)).unwrap();
-        let _: () = con.lpush(worker.source_queue(), sample_job_payload(3)).unwrap();
+        let _: () = con
+            .lpush(worker.source_queue(), sample_job_payload(1))
+            .unwrap();
+        let _: () = con
+            .lpush(worker.source_queue(), sample_job_payload(2))
+            .unwrap();
+        let _: () = con
+            .lpush(worker.source_queue(), sample_job_payload(3))
+            .unwrap();
 
         assert_eq!(3, worker.size());
 
@@ -343,7 +353,9 @@ mod test {
         let _: () = con.del(worker.source_queue()).unwrap();
         let _: () = con.del(worker.processing_queue()).unwrap();
         let _: () = con.del(worker.unacked_queue()).unwrap();
-        let _: () = con.lpush(worker.source_queue(), sample_job_payload(1)).unwrap();
+        let _: () = con
+            .lpush(worker.source_queue(), sample_job_payload(1))
+            .unwrap();
 
         {
             let mut m: MessageGuard<Message> = worker.next().unwrap().unwrap();
