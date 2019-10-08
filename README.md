@@ -62,6 +62,10 @@ without bound.
     Reject the message and push it from the *processing* queue to the *unack*
     queue.
 
+`MessageGuard::push(push_queue_name: String) -> RedisResult<Value>`<br/>
+    Remove the message from the processing queue and push it to the specified
+    queue. It can be used to implement retries.
+
 The traits `MessageEncodable` and `MessageDecodable` ensure that the message
 can be serialized and deserialized to/from Redis. They are implemented by
 default for all the objects that implements the `Serialize` and `Deserialized`

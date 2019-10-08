@@ -103,7 +103,8 @@ impl<'a, T> MessageGuard<'a, T> {
         self.push(self.unacked_queue_name.clone())
     }
 
-    /// Push the message from the *processing* queue to the specified queue.
+    /// Remove the message from the processing queue and push it to the
+    /// specified queue. It can be used to implement retries.
     pub fn push(&mut self, push_queue_name: String) -> RedisResult<Value> {
         self.state = MessageState::Pushed;
         redis::pipe()
