@@ -1,4 +1,4 @@
-use orizuru::Consumer;
+use orizuru::Producer;
 use serde::{Deserialize, Serialize};
 use std::thread::sleep;
 use std::time::Duration;
@@ -11,7 +11,7 @@ struct Job {
 fn main() {
     let client = redis::Client::open("redis://127.0.0.1/").unwrap();
     let con = client.get_connection().unwrap();
-    let q = Consumer::new("producer-1".into(), "default".into(), con);
+    let q = Producer::new("orizuru-example".into(), con);
 
     println!("Enqueuing jobs");
 
