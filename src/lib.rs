@@ -61,18 +61,18 @@ impl<'a, T> MessageGuard<'a, T> {
         &self.message
     }
 
-    pub fn ack(&mut self) {
+    pub fn ack(&mut self) -> RedisResult<Value> {
         self.acked = true;
-        let _: RedisResult<Value> = self.consumer
+        self.consumer
             .client
             .borrow_mut()
-            .lrem(self.consumer.processing_queue_name.as_str(), 1, self.payload.clone());
+            .lrem(self.consumer.processing_queue_name.as_str(), 1, self.payload.clone())
     }
 
     /// Reject the current job, in order to move it to the unacked queue
-    pub fn reject(&mut self) {
+    pub fn reject(&mut self) -> RedisResult<Value> {
         self.rejected = true;
-        let _: RedisResult<Value> = redis::pipe()
+        redis::pipe()
             .atomic()
             .cmd("LPUSH")
             .arg(self.consumer.unacked_queue_name.as_str())
@@ -83,7 +83,7 @@ impl<'a, T> MessageGuard<'a, T> {
             .arg(1)
             .arg(self.payload.clone())
             .ignore()
-            .query(&mut *self.consumer.client.borrow_mut());
+            .query(&mut *self.consumer.client.borrow_mut())
     }
 
     /// Get access to the wrapper queue.
@@ -103,7 +103,7 @@ impl<'a, T> Deref for MessageGuard<'a, T> {
 impl<'a, T> Drop for MessageGuard<'a, T> {
     fn drop(&mut self) {
         if !self.rejected && !self.acked {
-            self.reject();
+            let _ = self.reject();
         }
     }
 }
