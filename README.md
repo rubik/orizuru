@@ -48,17 +48,17 @@ without bound.
 
 ## API
 
-`Producer.push<T: MessageEncodable>(message: T) -> Option<RedisResult<i32>>`
+`Producer.push<T: MessageEncodable>(message: T) -> Option<RedisResult<i32>>`<br/>
     Push a message onto a *source* queue.
 
-`Consumer.next<T: MessageDecodable>() -> Option<RedisResult<MessageGuard<T>>>`
+`Consumer.next<T: MessageDecodable>() -> Option<RedisResult<MessageGuard<T>>>`<br/>
     Fetch the next message from the queue. This method blocks and waits until a
     new message is available.
 
-`MessageGuard.ack() -> RedisResult<Value>`
+`MessageGuard.ack() -> RedisResult<Value>`<br/>
     Acknowledge the message and remove it from the *processing* queue.
 
-`MessageGuard.reject() -> RedisResult<Value>`
+`MessageGuard.reject() -> RedisResult<Value>`<br/>
     Reject the message and push it from the *processing* queue to the *unack*
     queue.
 
