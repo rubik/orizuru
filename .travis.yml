@@ -21,5 +21,5 @@ script:
   - cargo check --benches
 
 after_success:
-  - cargo install tarpaulin
+  - cargo install cargo-tarpaulin
   - cargo tarpaulin -v --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
