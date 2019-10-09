@@ -47,10 +47,10 @@ without bound.
 </p>
 
 ## Simplicity
-In line with Rust's philosophy of not including non-essential features that may
-just be bloat, Orizuru is designed with simplicity in mind. This informs both
-the public API, which is minimal, and the implementation. All the functionality
-is implemented as a library, so that the user is free to integrate it in their
+In line with Rust's philosophy of not not picking a specific implementation
+strategy, Orizuru is designed with simplicity in mind. This informs both the
+public API, which is minimal, and the implementation. All the functionality is
+implemented as a library, so that the user is free to integrate it in their
 architecture however they wish.
 
 ## API
