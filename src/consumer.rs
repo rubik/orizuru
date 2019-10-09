@@ -1,14 +1,19 @@
 use crate::message;
 use redis::{from_redis_value, Commands, ErrorKind, RedisResult, Value};
 use std::cell::{Cell, RefCell};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const CONSUMERS_KEY: &str = "orizuru:consumers";
+const HEARTBEAT_KEY: &str = "orizuru:consumers:{consumer}:heartbeat";
+const HEARTBEATS_KEY: &str = "orizuru:heartbeats";
 
 pub struct Consumer {
     name: String,
     source_queue_name: String,
     processing_queue_name: String,
     unacked_queue_name: String,
+    heartbeat_key: String,
+    heartbeats_key: String,
     stopped: Cell<bool>,
     client: RefCell<redis::Connection>,
 }
@@ -22,12 +27,15 @@ impl Consumer {
         let processing_queue_name =
             format!("orizuru:consumers:{}:processing", name);
         let unacked_queue_name = format!("orizuru:consumers:{}:unacked", name);
+        let heartbeat_key = HEARTBEAT_KEY.replace("{consumer}", name.as_str());
 
         Consumer {
             name: name,
-            source_queue_name: source_queue_name,
-            processing_queue_name: processing_queue_name,
-            unacked_queue_name: unacked_queue_name,
+            source_queue_name,
+            processing_queue_name,
+            unacked_queue_name,
+            heartbeat_key,
+            heartbeats_key: HEARTBEATS_KEY.into(),
             client: RefCell::new(client),
             stopped: Cell::new(false),
         }
@@ -77,6 +85,27 @@ impl Consumer {
             .borrow_mut()
             .llen(self.source_queue_name.as_str())
             .unwrap_or(0)
+    }
+
+    pub fn heartbeat(&self, ttl: Duration) -> RedisResult<Value> {
+        let now = SystemTime::now();
+        let ts = match now.duration_since(UNIX_EPOCH) {
+            Ok(d) => d.as_millis(),
+            Err(_) => 0,
+        };
+        redis::pipe()
+            .cmd("HSET")
+            .arg(self.heartbeats_key.as_str())
+            .arg(self.name.as_str())
+            .arg(ts.to_string())
+            .ignore()
+            .cmd("SET")
+            .arg(self.heartbeat_key.as_str())
+            .arg("1")
+            .arg("PS")
+            .arg(ttl.as_millis().to_string())
+            .ignore()
+            .query(&mut *self.client.borrow_mut())
     }
 
     /// Grab the next job from the queue.
