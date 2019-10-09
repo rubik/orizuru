@@ -21,6 +21,7 @@ include = [
 
 [dev-dependencies]
 uuid = { version = "0.7.0", features = ["v4"] }
+cargo-tarpaulin = "0.9.0"
 
 [dependencies]
 redis = "0.12.0"

@@ -26,5 +26,4 @@ script:
 after_success:
   - |
     [ "$RUST_VERSION" != "stable" ] && [ "$COMMAND" != "test" ] && exit 0
-    cargo install cargo-tarpaulin && \
     cargo tarpaulin -v --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
