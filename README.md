@@ -8,6 +8,9 @@
   <a href="https://travis-ci.org/rubik/orizuru">
     <img src="https://img.shields.io/travis/rubik/orizuru?style=for-the-badge" alt="Build">
   </a>
+  <a href="https://coveralls.io/github/rubik/orizuru">
+    <img src="https://img.shields.io/coveralls/github/rubik/orizuru?style=for-the-badge" alt="Code Coverage">
+  </a>
   <a href="https://crates.io/crates/orizuru">
    <img src="https://img.shields.io/crates/d/orizuru?style=for-the-badge" alt="Downloads (all time)">
   <a>
