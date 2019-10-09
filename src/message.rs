@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::cell::RefCell;
 use std::ops::{Deref, Drop};
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum MessageState {
     Unacked,
     Acked,
