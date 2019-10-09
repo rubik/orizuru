@@ -6,6 +6,7 @@ edition = "2018"
 description = "A reliable, scalable and flexible Redis message queue."
 homepage = "https://github.com/rubik/orizuru"
 repository = "https://github.com/rubik/orizuru"
+keywords = ["message", "job", "queue", "redis"]
 
 readme = "README.md"
 license = "ISC"
