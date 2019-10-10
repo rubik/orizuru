@@ -17,7 +17,7 @@ services:
 matrix:
   include:
     - rust: stable
-      env: RUST_VERSION=stable COMMAND=test
+      env: RUST_VERSION=stable COMMAND=test COV=yes
 
     - rust: beta
       env: RUST_VERSION=beta COMMAND=test
@@ -33,7 +33,6 @@ script:
   - cargo check --benches
 
 after_success:
-  - |
-    [ "$RUST_VERSION" != "stable" ] && [ "$COMMAND" != "test" ] && exit 0
+  - [[ "$COV" = "yes" ]] && \
     cargo install cargo-tarpaulin && \
     cargo tarpaulin -v --ignore-tests --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
