@@ -144,3 +144,28 @@ impl<'a, T> Drop for MessageGuard<'a, T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use redis::Value;
+    use serde::{Serialize, Deserialize};
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct BrokenMessage {}
+
+    #[test]
+    fn cant_decode_if_not_string() {
+        let err = Err("can only decode from a string");
+        assert_eq!(BrokenMessage::decode_job(&Value::Nil), err);
+        assert_eq!(BrokenMessage::decode_job(&Value::Int(24)), err);
+        assert_eq!(BrokenMessage::decode_job(&Value::Bulk(vec![Value::Nil])), err);
+        assert_eq!(BrokenMessage::decode_job(&Value::Status("info".into())), err);
+    }
+
+    #[test]
+    fn cant_decode_if_not_msgpack() {
+        let err = Err("failed to decode value with msgpack");
+        assert_eq!(BrokenMessage::decode_job(&Value::Data(vec![1, 2, 3])), err);
+    }
+}
