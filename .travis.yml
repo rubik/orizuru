@@ -30,7 +30,6 @@ matrix:
 
 script:
   - make $COMMAND
-  - cargo check --benches
 
 after_success:
   - |
