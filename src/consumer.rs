@@ -6,6 +6,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const CONSUMERS_KEY: &str = "orizuru:consumers";
 const HEARTBEAT_KEY: &str = "orizuru:consumers:{consumer}:heartbeat";
 const HEARTBEATS_KEY: &str = "orizuru:heartbeats";
+const PROCESSING_QUEUE_KEY: &str = "orizuru:consumers:{consumer}:processing";
+const UNACKED_QUEUE_KEY: &str = "orizuru:consumers:{consumer}:unacked";
 
 pub struct Consumer {
     name: String,
@@ -24,13 +26,18 @@ impl Consumer {
         source_queue_name: String,
         client: redis::Connection,
     ) -> Consumer {
-        let processing_queue_name =
-            format!("orizuru:consumers:{}:processing", name);
-        let unacked_queue_name = format!("orizuru:consumers:{}:unacked", name);
+        let processing_queue_name = PROCESSING_QUEUE_KEY.replace(
+            "{consumer}",
+            name.as_str(),
+        );
+        let unacked_queue_name = UNACKED_QUEUE_KEY.replace(
+            "{consumer}",
+            name.as_str(),
+        );
         let heartbeat_key = HEARTBEAT_KEY.replace("{consumer}", name.as_str());
 
         Consumer {
-            name: name,
+            name,
             source_queue_name,
             processing_queue_name,
             unacked_queue_name,
