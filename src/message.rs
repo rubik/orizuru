@@ -161,6 +161,7 @@ mod tests {
         assert_eq!(BrokenMessage::decode_job(&Value::Int(24)), err);
         assert_eq!(BrokenMessage::decode_job(&Value::Bulk(vec![Value::Nil])), err);
         assert_eq!(BrokenMessage::decode_job(&Value::Status("info".into())), err);
+        assert_eq!(BrokenMessage::decode_job(&Value::Okay), err);
     }
 
     #[test]
