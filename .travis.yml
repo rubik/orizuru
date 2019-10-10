@@ -33,6 +33,7 @@ script:
   - cargo check --benches
 
 after_success:
-  - [ "$COV" = "yes" ] && \
+  - |
+    [[ "$COV" = "yes" ]] && \
     cargo install cargo-tarpaulin && \
     cargo tarpaulin -v --ignore-tests --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
