@@ -4,7 +4,9 @@ set -xe
 
 make $COMMAND
 
-[ "$COV" = "yes" ] && \
-    cargo install cargo-tarpaulin && \
+if [ "$COV" = "yes" ]
+then
+    cargo install cargo-tarpaulin || travis_terminate 0
     cargo tarpaulin -v --ignore-tests \
         --ciserver travis-ci --coveralls "$TRAVIS_JOB_ID"
+fi
