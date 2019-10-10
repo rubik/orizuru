@@ -151,7 +151,7 @@ impl Consumer {
             }
         };
 
-        match T::decode_job(&v) {
+        match T::decode_message(&v) {
             Err(e) => Some(Err(e)),
             Ok(message) => Some(Ok(message::MessageGuard::new(
                 message,

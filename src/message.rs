@@ -24,7 +24,7 @@ where
     ///
     /// In the default implementation, the string value is decoded by assuming
     /// it was encoded through the Msgpack encoding.
-    fn decode_job(value: &Value) -> Result<Self, &'static str>;
+    fn decode_message(value: &Value) -> Result<Self, &'static str>;
 }
 
 /// Message objects that can be encoded to a string to be stored in Redis.
@@ -34,11 +34,11 @@ pub trait MessageEncodable {
     /// Encode the value into a bytes array to be inserted into Redis.
     ///
     /// In the default implementation, the object is encoded with Msgpack.
-    fn encode_job(&self) -> Result<Vec<u8>, &'static str>;
+    fn encode_message(&self) -> Result<Vec<u8>, &'static str>;
 }
 
 impl<T: DeserializeOwned> MessageDecodable for T {
-    fn decode_job(value: &Value) -> Result<T, &'static str> {
+    fn decode_message(value: &Value) -> Result<T, &'static str> {
         match *value {
             Value::Data(ref v) => rmp_serde::decode::from_slice(v).or(
                 Err("failed to decode value with msgpack")
@@ -49,7 +49,7 @@ impl<T: DeserializeOwned> MessageDecodable for T {
 }
 
 impl<T: Serialize> MessageEncodable for T {
-    fn encode_job(&self) -> Result<Vec<u8>, &'static str> {
+    fn encode_message(&self) -> Result<Vec<u8>, &'static str> {
         rmp_serde::encode::to_vec(self).or(Err("failed to encode value"))
     }
 }
@@ -157,16 +157,16 @@ mod tests {
     #[test]
     fn cant_decode_if_not_string() {
         let err = Err("can only decode from a string");
-        assert_eq!(BrokenMessage::decode_job(&Value::Nil), err);
-        assert_eq!(BrokenMessage::decode_job(&Value::Int(24)), err);
-        assert_eq!(BrokenMessage::decode_job(&Value::Bulk(vec![Value::Nil])), err);
-        assert_eq!(BrokenMessage::decode_job(&Value::Status("info".into())), err);
-        assert_eq!(BrokenMessage::decode_job(&Value::Okay), err);
+        assert_eq!(BrokenMessage::decode_message(&Value::Nil), err);
+        assert_eq!(BrokenMessage::decode_message(&Value::Int(24)), err);
+        assert_eq!(BrokenMessage::decode_message(&Value::Bulk(vec![Value::Nil])), err);
+        assert_eq!(BrokenMessage::decode_message(&Value::Status("info".into())), err);
+        assert_eq!(BrokenMessage::decode_message(&Value::Okay), err);
     }
 
     #[test]
     fn cant_decode_if_not_msgpack() {
         let err = Err("failed to decode value with msgpack");
-        assert_eq!(BrokenMessage::decode_job(&Value::Data(vec![1, 2, 3])), err);
+        assert_eq!(BrokenMessage::decode_message(&Value::Data(vec![1, 2, 3])), err);
     }
 }
