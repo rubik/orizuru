@@ -9,7 +9,7 @@ cache:
 
 # But don't cache the cargo registry
 before_cache:
-  - rm -rf /home/travis/.cargo/registry
+  - rm -rf /home/travis/.cargo/registry/{src,index}
 
 services:
   - redis-server
