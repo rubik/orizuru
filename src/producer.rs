@@ -1,5 +1,5 @@
 use crate::message;
-use redis::{Commands, RedisResult};
+use redis::Commands;
 use std::cell::RefCell;
 
 pub struct Producer {
@@ -16,10 +16,11 @@ impl Producer {
     }
 
     /// Push a new job to the source queue.
-    pub fn push<T: message::MessageEncodable>(&self, job: T) -> RedisResult<()> {
+    pub fn push<T: message::MessageEncodable>(&self, job: T) -> Result<(), &'static str> {
+        let encoded = job.encode_job()?;
         self.client
             .borrow_mut()
-            .lpush(self.queue_name.as_str(), job.encode_job())
+            .lpush(self.queue_name.as_str(), encoded).or(Err("failed to push"))
     }
 
     /// Get the number of remaining jobs in the queue.

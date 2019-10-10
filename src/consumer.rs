@@ -1,5 +1,5 @@
 use crate::message;
-use redis::{from_redis_value, Commands, ErrorKind, RedisResult, Value};
+use redis::{from_redis_value, Commands, RedisResult, Value};
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -122,7 +122,7 @@ impl Consumer {
     /// Otherwise it returns a RedisResult value that may wrap the message.
     pub fn next<T: message::MessageDecodable>(
         &self,
-    ) -> Option<RedisResult<message::MessageGuard<T>>> {
+    ) -> Option<Result<message::MessageGuard<T>, &'static str>> {
         if self.is_stopped() {
             return None;
         }
@@ -135,10 +135,9 @@ impl Consumer {
             v = match self.client.borrow_mut().brpoplpush(source, processing, 0) {
                 Ok(v) => v,
                 Err(_) => {
-                    return Some(Err(From::from((
-                        ErrorKind::TypeError,
-                        "next failed",
-                    ))));
+                    return Some(Err(
+                        "failed to fetch next message with brpoplpush",
+                    ));
                 }
             };
         }
@@ -146,10 +145,9 @@ impl Consumer {
         let v = match v {
             v @ Value::Data(_) => v,
             _ => {
-                return Some(Err(From::from((
-                    ErrorKind::TypeError,
-                    "unknown result type",
-                ))));
+                return Some(Err(
+                    "unknown result type for next message",
+                ));
             }
         };
 

@@ -1,4 +1,4 @@
-use redis::{Commands, ErrorKind, RedisResult, Value};
+use redis::{Commands, RedisResult, Value};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cell::RefCell;
@@ -24,7 +24,7 @@ where
     ///
     /// In the default implementation, the string value is decoded by assuming
     /// it was encoded through the Msgpack encoding.
-    fn decode_job(value: &Value) -> RedisResult<Self>;
+    fn decode_job(value: &Value) -> Result<Self, &'static str>;
 }
 
 /// Message objects that can be encoded to a string to be stored in Redis.
@@ -34,23 +34,23 @@ pub trait MessageEncodable {
     /// Encode the value into a bytes array to be inserted into Redis.
     ///
     /// In the default implementation, the object is encoded with Msgpack.
-    fn encode_job(&self) -> Vec<u8>;
+    fn encode_job(&self) -> Result<Vec<u8>, &'static str>;
 }
 
 impl<T: DeserializeOwned> MessageDecodable for T {
-    fn decode_job(value: &Value) -> RedisResult<T> {
+    fn decode_job(value: &Value) -> Result<T, &'static str> {
         match *value {
-            Value::Data(ref v) => rmp_serde::decode::from_slice(v).map_err(|_| {
-                From::from((ErrorKind::TypeError, "Msgpack decode failed"))
-            }),
-            _ => Err((ErrorKind::TypeError, "Can only decode from a string"))?,
+            Value::Data(ref v) => rmp_serde::decode::from_slice(v).or(
+                Err("failed to decode value with msgpack")
+            ),
+            _ => Err("can only decode from a string"),
         }
     }
 }
 
 impl<T: Serialize> MessageEncodable for T {
-    fn encode_job(&self) -> Vec<u8> {
-        rmp_serde::encode::to_vec(self).unwrap()
+    fn encode_job(&self) -> Result<Vec<u8>, &'static str> {
+        rmp_serde::encode::to_vec(self).or(Err("failed to encode value"))
     }
 }
 
