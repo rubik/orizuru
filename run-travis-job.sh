@@ -1,12 +1,12 @@
 #!/bin/sh
 
-set -xe
+set -x
 
 make $COMMAND
 
 if [ "$COV" = "yes" ]
 then
-    cargo install cargo-tarpaulin || travis_terminate 0
+    cargo install cargo-tarpaulin
     cargo tarpaulin -v --ignore-tests \
         --ciserver travis-ci --coveralls "$TRAVIS_JOB_ID"
 fi
