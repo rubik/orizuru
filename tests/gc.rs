@@ -2,9 +2,9 @@ use orizuru::{Consumer, GC};
 use redis::{Commands, Value};
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::thread;
 use std::time;
+use uuid::Uuid;
 
 #[macro_use]
 mod test_utils;
@@ -57,10 +57,10 @@ fn collect_runs_with_a_consumer_and_no_jobs() {
 
 #[test]
 fn collect_runs_with_a_consumer_and_some_jobs() {
+    // ugly hack to ensure this test runs after the previous one, because Cargo
+    // runs them in parallel
+    thread::sleep(time::Duration::from_millis(300));
     redis_fixture!(client, con, consumer, "g", gc, {
-        // ugly hack to ensure this test runs after the previous one, because Cargo
-        // runs them in parallel
-        thread::sleep(time::Duration::from_secs(1));
         for i in 0..3 {
             let _: () = con
                 .lpush(consumer.unacked_queue(), sample_job_payload(i))

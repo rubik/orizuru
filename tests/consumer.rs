@@ -2,6 +2,7 @@ use orizuru::Consumer;
 use redis::{Commands, Value};
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
+use std::thread;
 use std::time;
 use uuid::Uuid;
 
@@ -155,6 +156,9 @@ fn one_heartbeat() {
 
 #[test]
 fn multiple_heartbeat() {
+    // ugly hack to ensure this test runs after the previous one, because Cargo
+    // runs them in parallel
+    thread::sleep(time::Duration::from_millis(300));
     redis_fixture!(client, con, consumer, {
         let _: () = con.del(consumer.heartbeats_key()).unwrap();
 
