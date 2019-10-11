@@ -1,3 +1,4 @@
+use crate::consumer;
 use redis::{Commands, RedisResult, Value};
 use std::cell::RefCell;
 
@@ -13,10 +14,9 @@ impl GC {
     }
 
     pub fn collect_one(&self, consumer_name: &str) -> RedisResult<u64> {
-        let n: u64 = self
-            .client
-            .borrow_mut()
-            .llen(format!("orizuru:consumers:{}:unacked", consumer_name))?;
+        let n: u64 = self.client.borrow_mut().llen(
+            consumer::UNACKED_QUEUE_KEY.replace("{consumer}", consumer_name),
+        )?;
 
         if n == 0 {
             return Ok(0);
@@ -29,8 +29,9 @@ impl GC {
         let mut total: u64 = 0;
         for _ in 0..n {
             let res: RedisResult<Value> = self.client.borrow_mut().rpoplpush(
-                format!("orizuru:consumers:{}:unacked", consumer_name),
-                format!("orizuru:consumers:{}:processing", consumer_name),
+                consumer::UNACKED_QUEUE_KEY.replace("{consumer}", consumer_name),
+                consumer::PROCESSING_QUEUE_KEY
+                    .replace("{consumer}", consumer_name),
             );
             match res {
                 Err(e) => return Err(e),
@@ -44,7 +45,7 @@ impl GC {
 
     pub fn collect(&self) -> RedisResult<u64> {
         let vals: Vec<String> =
-            self.client.borrow_mut().smembers("orizuru:consumers")?;
+            self.client.borrow_mut().smembers(consumer::CONSUMERS_KEY)?;
         let mut total: u64 = 0;
         for name in vals {
             total += match self.collect_one(name.as_str()) {
