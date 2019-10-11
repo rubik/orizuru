@@ -1,7 +1,8 @@
-use orizuru::{Consumer, Producer};
-use redis::Commands;
+use orizuru::Consumer;
+use redis::{Commands, Value};
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
+use std::time;
 use uuid::Uuid;
 
 #[macro_use]
@@ -116,5 +117,64 @@ fn can_be_stopped() {
         }
 
         assert_eq!(2, consumer.size());
+    });
+}
+
+#[test]
+fn no_heartbeat() {
+    redis_fixture!(client, con, consumer, {
+        let single: Value = con.get(consumer.heartbeat_key()).unwrap();
+
+        assert_eq!(single, Value::Nil);
+    });
+}
+
+#[test]
+fn one_heartbeat() {
+    redis_fixture!(client, con, consumer, {
+        let _: () = con.del(consumer.heartbeats_key()).unwrap();
+
+        let ts = consumer.heartbeat(time::Duration::from_secs(5));
+        let ts = ts.to_string();
+
+        let all: Value = con.hgetall(consumer.heartbeats_key()).unwrap();
+        let single: Value = con.get(consumer.heartbeat_key()).unwrap();
+
+        assert_eq!(
+            all,
+            Value::Bulk(vec![
+                Value::Data(consumer.name().as_bytes().to_vec()),
+                Value::Data(ts.clone().into_bytes())
+            ])
+        );
+        assert_eq!(single, Value::Data(ts.into_bytes()));
+
+        let _: () = con.del(consumer.heartbeats_key()).unwrap();
+    });
+}
+
+#[test]
+fn multiple_heartbeat() {
+    redis_fixture!(client, con, consumer, {
+        let _: () = con.del(consumer.heartbeats_key()).unwrap();
+
+        let _ = consumer.heartbeat(time::Duration::from_secs(5));
+        let _ = consumer.heartbeat(time::Duration::from_secs(5));
+        let ts = consumer.heartbeat(time::Duration::from_secs(5));
+        let ts = ts.to_string();
+
+        let all: Value = con.hgetall(consumer.heartbeats_key()).unwrap();
+        let single: Value = con.get(consumer.heartbeat_key()).unwrap();
+
+        assert_eq!(
+            all,
+            Value::Bulk(vec![
+                Value::Data(consumer.name().as_bytes().to_vec()),
+                Value::Data(ts.clone().into_bytes())
+            ])
+        );
+        assert_eq!(single, Value::Data(ts.into_bytes()));
+
+        let _: () = con.del(consumer.heartbeats_key()).unwrap();
     });
 }

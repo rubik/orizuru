@@ -3,11 +3,11 @@ use redis::{from_redis_value, Commands, RedisResult, Value};
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const CONSUMERS_KEY: &str = "orizuru:consumers";
-const HEARTBEAT_KEY: &str = "orizuru:consumers:{consumer}:heartbeat";
-const HEARTBEATS_KEY: &str = "orizuru:heartbeats";
-const PROCESSING_QUEUE_KEY: &str = "orizuru:consumers:{consumer}:processing";
-const UNACKED_QUEUE_KEY: &str = "orizuru:consumers:{consumer}:unacked";
+pub const CONSUMERS_KEY: &str = "orizuru:consumers";
+pub const HEARTBEAT_KEY: &str = "orizuru:consumers:{consumer}:heartbeat";
+pub const HEARTBEATS_KEY: &str = "orizuru:heartbeats";
+pub const PROCESSING_QUEUE_KEY: &str = "orizuru:consumers:{consumer}:processing";
+pub const UNACKED_QUEUE_KEY: &str = "orizuru:consumers:{consumer}:unacked";
 
 pub struct Consumer {
     name: String,
@@ -26,14 +26,10 @@ impl Consumer {
         source_queue_name: String,
         client: redis::Connection,
     ) -> Consumer {
-        let processing_queue_name = PROCESSING_QUEUE_KEY.replace(
-            "{consumer}",
-            name.as_str(),
-        );
-        let unacked_queue_name = UNACKED_QUEUE_KEY.replace(
-            "{consumer}",
-            name.as_str(),
-        );
+        let processing_queue_name =
+            PROCESSING_QUEUE_KEY.replace("{consumer}", name.as_str());
+        let unacked_queue_name =
+            UNACKED_QUEUE_KEY.replace("{consumer}", name.as_str());
         let heartbeat_key = HEARTBEAT_KEY.replace("{consumer}", name.as_str());
 
         Consumer {
@@ -77,6 +73,16 @@ impl Consumer {
     }
 
     /// Get the source queue name.
+    pub fn heartbeat_key(&self) -> &str {
+        &self.heartbeat_key
+    }
+
+    /// Get the source queue name.
+    pub fn heartbeats_key(&self) -> &str {
+        &self.heartbeats_key
+    }
+
+    /// Get the source queue name.
     pub fn source_queue(&self) -> &str {
         &self.source_queue_name
     }
@@ -99,13 +105,13 @@ impl Consumer {
             .unwrap_or(0)
     }
 
-    pub fn heartbeat(&self, ttl: Duration) -> RedisResult<Value> {
+    pub fn heartbeat(&self, ttl: Duration) -> u128 {
         let now = SystemTime::now();
         let ts = match now.duration_since(UNIX_EPOCH) {
             Ok(d) => d.as_millis(),
             Err(_) => 0,
         };
-        redis::pipe()
+        let _: RedisResult<()> = redis::pipe()
             .cmd("HSET")
             .arg(self.heartbeats_key.as_str())
             .arg(self.name.as_str())
@@ -113,11 +119,13 @@ impl Consumer {
             .ignore()
             .cmd("SET")
             .arg(self.heartbeat_key.as_str())
-            .arg("1")
-            .arg("PS")
+            .arg(ts.to_string())
+            .arg("PX")
             .arg(ttl.as_millis().to_string())
             .ignore()
-            .query(&mut *self.client.borrow_mut())
+            .query(&mut *self.client.borrow_mut());
+
+        ts
     }
 
     /// Grab the next job from the queue.
@@ -150,9 +158,7 @@ impl Consumer {
         let v = match v {
             v @ Value::Data(_) => v,
             _ => {
-                return Some(Err(
-                    "unknown result type for next message",
-                ));
+                return Some(Err("unknown result type for next message"));
             }
         };
 
