@@ -6,8 +6,10 @@ pub struct GC {
 }
 
 impl GC {
-    pub fn new(client: RefCell<redis::Connection>) -> GC {
-        GC { client }
+    pub fn new(client: redis::Connection) -> GC {
+        GC {
+            client: RefCell::new(client),
+        }
     }
 
     pub fn collect_one(&self, consumer_name: &str) -> RedisResult<u64> {
@@ -25,7 +27,7 @@ impl GC {
         // should be). It also does not matter if some elements are removed,
         // because we are using RPOPLPUSH here, which is not blocking.
         let mut total: u64 = 0;
-        for _ in 1..n {
+        for _ in 0..n {
             let res: RedisResult<Value> = self.client.borrow_mut().rpoplpush(
                 format!("orizuru:consumers:{}:unacked", consumer_name),
                 format!("orizuru:consumers:{}:processing", consumer_name),

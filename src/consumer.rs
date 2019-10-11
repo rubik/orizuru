@@ -71,6 +71,11 @@ impl Consumer {
         self.stopped.get()
     }
 
+    /// Get the name of the consumer.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     /// Get the source queue name.
     pub fn source_queue(&self) -> &str {
         &self.source_queue_name

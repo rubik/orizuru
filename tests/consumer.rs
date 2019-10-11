@@ -121,7 +121,7 @@ fn can_be_stopped() {
 
 #[test]
 fn producer_can_enqueue() {
-    redis_fixture!(client, con, consumer, producer, {
+    redis_fixture!(client, con, consumer, "p", producer, {
         assert_eq!(0, producer.size());
         assert_eq!(0, consumer.size());
 

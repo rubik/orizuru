@@ -20,13 +20,22 @@ macro_rules! redis_fixture {
         let _: () = $con.del($consumer.unacked_queue()).unwrap();
     };
 
-    ($client:ident, $con:ident, $consumer:ident, $producer:ident, $code:block) => {
+    ($client:ident, $con:ident, $consumer:ident, "p", $producer:ident, $code:block) => {
         redis_fixture!($client, $con, $consumer, {
             let con3 = $client.get_connection().unwrap();
             let $producer = Producer::new(
                 $consumer.source_queue().into(),
                 con3,
             );
+
+            $code
+        });
+    };
+
+    ($client:ident, $con:ident, $consumer:ident, "g", $gc:ident, $code:block) => {
+        redis_fixture!($client, $con, $consumer, {
+            let con3 = $client.get_connection().unwrap();
+            let $gc = GC::new(con3);
 
             $code
         });
