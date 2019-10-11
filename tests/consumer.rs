@@ -178,3 +178,19 @@ fn multiple_heartbeat() {
         let _: () = con.del(consumer.heartbeats_key()).unwrap();
     });
 }
+
+#[test]
+fn register() {
+    redis_fixture!(client, con, consumer, {
+        let _: () = con.del(consumer.consumers_key()).unwrap();
+
+        let _ = consumer.register();
+        let rv: Value = con
+            .sismember(consumer.consumers_key(), consumer.name())
+            .unwrap();
+
+        assert_eq!(rv, Value::Int(1));
+
+        let _: () = con.del(consumer.consumers_key()).unwrap();
+    });
+}

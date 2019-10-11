@@ -14,6 +14,7 @@ pub struct Consumer {
     source_queue_name: String,
     processing_queue_name: String,
     unacked_queue_name: String,
+    consumers_key: String,
     heartbeat_key: String,
     heartbeats_key: String,
     stopped: Cell<bool>,
@@ -37,6 +38,7 @@ impl Consumer {
             source_queue_name,
             processing_queue_name,
             unacked_queue_name,
+            consumers_key: CONSUMERS_KEY.into(),
             heartbeat_key,
             heartbeats_key: HEARTBEATS_KEY.into(),
             client: RefCell::new(client),
@@ -72,12 +74,17 @@ impl Consumer {
         &self.name
     }
 
-    /// Get the source queue name.
+    /// Get the consumers key.
+    pub fn consumers_key(&self) -> &str {
+        &self.consumers_key
+    }
+
+    /// Get the heartbeat key.
     pub fn heartbeat_key(&self) -> &str {
         &self.heartbeat_key
     }
 
-    /// Get the source queue name.
+    /// Get the multiple heartbeats key.
     pub fn heartbeats_key(&self) -> &str {
         &self.heartbeats_key
     }

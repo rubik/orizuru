@@ -1,3 +1,4 @@
+#[allow(unused_macros)]
 macro_rules! redis_fixture {
     ($client:ident, $con:ident, $consumer:ident, $code:block) => {
         let u = Uuid::new_v4();
