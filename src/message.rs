@@ -196,4 +196,23 @@ mod tests {
 
         assert_eq!(Vec::from(mg.payload()), vec![1, 2, 3, 4]);
     }
+
+    #[test]
+    fn message_field_is_accessible() {
+        let client = redis::Client::open("redis://127.0.0.1:6379/").unwrap();
+        let con = client.get_connection().unwrap();
+
+        let bm = BrokenMessage{};
+        let p = vec![1, 2, 3, 4];
+        let rc = RefCell::new(con);
+        let mg = MessageGuard::new(
+            bm,
+            p,
+            &rc,
+            "proc_test".into(),
+            "unack_test".into(),
+        );
+
+        assert_eq!(*mg.message(), BrokenMessage{});
+    }
 }
