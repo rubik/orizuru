@@ -40,9 +40,8 @@ pub trait MessageEncodable {
 impl<T: DeserializeOwned> MessageDecodable for T {
     fn decode_message(value: &Value) -> Result<T, &'static str> {
         match *value {
-            Value::Data(ref v) => rmp_serde::decode::from_slice(v).or(
-                Err("failed to decode value with msgpack")
-            ),
+            Value::Data(ref v) => rmp_serde::decode::from_slice(v)
+                .or(Err("failed to decode value with msgpack")),
             _ => Err("can only decode from a string"),
         }
     }
@@ -149,7 +148,7 @@ impl<'a, T> Drop for MessageGuard<'a, T> {
 mod tests {
     use super::*;
     use redis::Value;
-    use serde::{Serialize, Deserialize};
+    use serde::{Deserialize, Serialize};
 
     #[derive(Debug, PartialEq, Serialize, Deserialize)]
     struct BrokenMessage {}
@@ -159,14 +158,23 @@ mod tests {
         let err = Err("can only decode from a string");
         assert_eq!(BrokenMessage::decode_message(&Value::Nil), err);
         assert_eq!(BrokenMessage::decode_message(&Value::Int(24)), err);
-        assert_eq!(BrokenMessage::decode_message(&Value::Bulk(vec![Value::Nil])), err);
-        assert_eq!(BrokenMessage::decode_message(&Value::Status("info".into())), err);
+        assert_eq!(
+            BrokenMessage::decode_message(&Value::Bulk(vec![Value::Nil])),
+            err
+        );
+        assert_eq!(
+            BrokenMessage::decode_message(&Value::Status("info".into())),
+            err
+        );
         assert_eq!(BrokenMessage::decode_message(&Value::Okay), err);
     }
 
     #[test]
     fn cant_decode_if_not_msgpack() {
         let err = Err("failed to decode value with msgpack");
-        assert_eq!(BrokenMessage::decode_message(&Value::Data(vec![1, 2, 3])), err);
+        assert_eq!(
+            BrokenMessage::decode_message(&Value::Data(vec![1, 2, 3])),
+            err
+        );
     }
 }

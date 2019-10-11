@@ -16,11 +16,15 @@ impl Producer {
     }
 
     /// Push a new job to the source queue.
-    pub fn push<T: message::MessageEncodable>(&self, job: T) -> Result<(), &'static str> {
+    pub fn push<T: message::MessageEncodable>(
+        &self,
+        job: T,
+    ) -> Result<(), &'static str> {
         let encoded = job.encode_message()?;
         self.client
             .borrow_mut()
-            .lpush(self.queue_name.as_str(), encoded).or(Err("failed to push"))
+            .lpush(self.queue_name.as_str(), encoded)
+            .or(Err("failed to push"))
     }
 
     /// Get the number of remaining jobs in the queue.

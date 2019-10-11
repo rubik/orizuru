@@ -1,6 +1,5 @@
 use orizuru::{Consumer, Producer};
 use redis::Commands;
-use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
