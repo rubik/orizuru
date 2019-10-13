@@ -1,4 +1,4 @@
-use orizuru::Consumer;
+use orizuru::{Consumer, CONSUMERS_KEY};
 use redis::{Commands, Value};
 use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
@@ -184,16 +184,20 @@ fn multiple_heartbeat() {
 }
 
 #[test]
-fn register() {
+fn register_deregister() {
     redis_fixture!(client, con, consumer, {
         let _: () = con.del(consumer.consumers_key()).unwrap();
 
-        let _ = consumer.register();
+        assert!(consumer.register().is_ok());
         let rv: Value = con
             .sismember(consumer.consumers_key(), consumer.name())
             .unwrap();
 
         assert_eq!(rv, Value::Int(1));
+
+        assert!(consumer.deregister().is_ok());
+        let cons: Vec<String> = con.smembers(CONSUMERS_KEY).unwrap();
+        assert!(!cons.contains(&String::from(consumer.name())));
 
         let _: () = con.del(consumer.consumers_key()).unwrap();
     });

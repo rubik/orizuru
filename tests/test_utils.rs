@@ -41,4 +41,18 @@ macro_rules! redis_fixture {
             $code
         });
     };
+
+    ($client:ident, $con:ident, $consumer:ident, $producer:ident, $gc:ident, $code:block) => {
+        redis_fixture!($client, $con, $consumer, {
+            let con3 = $client.get_connection().unwrap();
+            let $producer = Producer::new(
+                $consumer.source_queue().into(),
+                con3,
+            );
+            let con4 = $client.get_connection().unwrap();
+            let $gc = GC::new(con4);
+
+            $code
+        });
+    };
 }

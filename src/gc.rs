@@ -48,10 +48,7 @@ impl GC {
             self.client.borrow_mut().smembers(consumer::CONSUMERS_KEY)?;
         let mut total: u64 = 0;
         for name in vals {
-            total += match self.collect_one(name.as_str()) {
-                Err(_) => 0,
-                Ok(i) => i,
-            };
+            total += self.collect_one(name.as_str()).unwrap_or(0);
         }
         Ok(total)
     }

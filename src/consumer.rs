@@ -54,14 +54,16 @@ impl Consumer {
             .sadd(CONSUMERS_KEY, self.name.as_str())
     }
 
-    /// Stop processing the queue.
-    /// The consumer will be deregistered, and the next `Consumer::next()` call
-    /// will return `None`.
-    pub fn stop(&self) -> RedisResult<Value> {
-        self.stopped.set(true);
+    pub fn deregister(&self) -> RedisResult<Value> {
         self.client
             .borrow_mut()
             .srem(CONSUMERS_KEY, self.name.as_str())
+    }
+
+    /// Stop processing the queue.
+    /// The next `Consumer::next()` call will return `None`.
+    pub fn stop(&self) {
+        self.stopped.set(true);
     }
 
     /// Check if queue processing is stopped.
